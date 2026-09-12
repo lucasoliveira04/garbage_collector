@@ -14,6 +14,7 @@ static Allocator *allocations = NULL;
 void *gc_malloc(size_t size);
 void gc_free(void *ptr);
 void gc_register_allocation(void *ptr, size_t size);
+void gc_unregister_allocation(void *ptr);
 void print_hp(void);
 
 void *gc_malloc(size_t size) {
@@ -33,6 +34,12 @@ void gc_free(void *ptr) {
         return;
     }
 
+    gc_unregister_allocation(ptr);
+
+    free(ptr);
+}
+
+void gc_unregister_allocation(void *ptr) {
     Allocator *curr = allocations;
     Allocator *prev = NULL;
 
@@ -45,7 +52,6 @@ void gc_free(void *ptr) {
                 prev->next = curr->next;
             }
 
-            free(curr->endereco);
             free(curr);
 
             return;
