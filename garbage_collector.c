@@ -3,8 +3,7 @@
 #include <string.h>
 
 // gc_malloc: Allocates memory and tracks It for garbage collection
-
-
+// gc_free: Free zone manually of memory
 typedef struct Allocator{
     void *endereco;
     size_t tamanho;
@@ -29,6 +28,34 @@ void *gc_malloc(size_t size) {
     return ptr;
 }
 
+void gc_free(void *ptr) {
+    if (ptr == NULL) {
+        return;
+    }
+
+    Allocator *curr = allocations;
+    Allocator *prev = NULL;
+
+    while (curr != NULL) {
+        if (curr->endereco == ptr) {
+            if (prev == NULL) {
+                allocations = curr->next;
+            } else {
+                prev->next = curr->next;
+            }
+        }
+
+        free(curr->endereco);
+        free(curr);
+
+        return;
+    }
+
+    prev = curr;
+    curr = curr->next;
+    printf("Memory heap after free");
+} 
+
 void print_hp(void) {
     Allocator *atual = allocations;
 
@@ -42,10 +69,11 @@ void print_hp(void) {
 
 
 int main() {
-    int *number = gc_malloc(sizeof(int));
-    *number = 22;
-    
-    char *buffer = gc_malloc(100);
+    int *number = gc_malloc(22);
+
+    print_hp();
+
+    gc_free(number);
 
     print_hp();
 
