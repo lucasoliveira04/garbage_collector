@@ -1,6 +1,7 @@
-#include <stdio.h>
+#include "garbage_collector.h"
+
 #include <stdlib.h>
-#include <string.h>
+#include <pthread.h>
 
 typedef struct Allocator {
     void *endereco;
@@ -10,14 +11,18 @@ typedef struct Allocator {
 
 static Allocator *allocations = NULL;
 
-// prototipos
-void *gc_malloc(size_t size);
-void gc_free(void *ptr);
-void gc_register_allocation(void *ptr, size_t size);
-void gc_unregister_allocation(void *ptr);
-void print_hp(void);
+static pthread_mutex_t allocations_mutex =
+    PTHREAD_MUTEX_INITIALIZER;
 
+
+// private functions
+static void gc_register_allocation(void *ptr, size_t size);
+static void gc_unregister_allocation(void *ptr);
+
+
+// allocate memory on heap
 void *gc_malloc(size_t size) {
+
     void *ptr = malloc(size);
 
     if (ptr == NULL) {
@@ -29,7 +34,10 @@ void *gc_malloc(size_t size) {
     return ptr;
 }
 
+
+// free memory
 void gc_free(void *ptr) {
+
     if (ptr == NULL) {
         return;
     }
@@ -39,11 +47,37 @@ void gc_free(void *ptr) {
     free(ptr);
 }
 
-void gc_unregister_allocation(void *ptr) {
+
+static void gc_register_allocation(void *ptr, size_t size) {
+
+    Allocator *alloc = malloc(sizeof(Allocator));
+
+    if (alloc == NULL) {
+        free(ptr);
+        return;
+    }
+
+    alloc->endereco = ptr;
+    alloc->tamanho = size;
+
+    pthread_mutex_lock(&allocations_mutex);
+
+    alloc->next = allocations;
+    allocations = alloc;
+
+    pthread_mutex_unlock(&allocations_mutex);
+}
+
+
+static void gc_unregister_allocation(void *ptr) {
+
+    pthread_mutex_lock(&allocations_mutex);
+
     Allocator *curr = allocations;
     Allocator *prev = NULL;
 
     while (curr != NULL) {
+
         if (curr->endereco == ptr) {
 
             if (prev == NULL) {
@@ -54,53 +88,54 @@ void gc_unregister_allocation(void *ptr) {
 
             free(curr);
 
+            pthread_mutex_unlock(&allocations_mutex);
+
             return;
         }
 
         prev = curr;
         curr = curr->next;
     }
+
+    pthread_mutex_unlock(&allocations_mutex);
 }
 
 
-void gc_register_allocation(void *ptr, size_t size) {
-    Allocator *alloc = malloc(sizeof(Allocator));
+// calculate how many bytes are currently registered
+size_t gc_get_heap_usage(void) {
 
-    if (alloc == NULL) {
-        return;
+    size_t total = 0;
+
+    pthread_mutex_lock(&allocations_mutex);
+
+    Allocator *current = allocations;
+
+    while (current != NULL) {
+        total += current->tamanho;
+        current = current->next;
     }
 
-    alloc->endereco = ptr;
-    alloc->tamanho = size;
-    alloc->next = allocations;
+    pthread_mutex_unlock(&allocations_mutex);
 
-    allocations = alloc;
+    return total;
 }
 
 
-void print_hp(void) {
-    Allocator *atual = allocations;
+// Return how many allocations currently exist
+size_t gc_get_allocation_count(void) {
 
-    printf("Allocated memory heap:\n");
+    size_t count = 0;
 
-    while (atual != NULL) {
-        printf(
-            "Address: %p, Size: %zu\n",
-            atual->endereco,
-            atual->tamanho
-        );
+    pthread_mutex_lock(&allocations_mutex);
 
-        atual = atual->next;
+    Allocator *current = allocations;
+
+    while (current != NULL) {
+        count++;
+        current = current->next;
     }
-}
 
+    pthread_mutex_unlock(&allocations_mutex);
 
-int main(void) {
-    int *number = gc_malloc(22);
-
-    print_hp();
-
-    gc_free(number);
-
-    return 0;
+    return count;
 }
