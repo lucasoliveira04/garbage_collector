@@ -15,4 +15,7 @@ size_t gc_get_heap_usage(void);
 // Returns the number of active allocations
 size_t gc_get_allocation_count(void);
 
+void gc_add_root(void **root);
+void gc_remove_root(void **root);
+
 #endif
